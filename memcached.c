@@ -3732,6 +3732,7 @@ static void process_slabs_automove_command(conn *c, token_t *tokens, const size_
 static void process_watch_command(conn *c, token_t *tokens, const size_t ntokens) {
     uint16_t f = 0;
     int x;
+    char *filter = NULL;
     assert(c != NULL);
 
     set_noreply_maybe(c, tokens, ntokens);
@@ -3745,6 +3746,13 @@ static void process_watch_command(conn *c, token_t *tokens, const size_t ntokens
                 f |= LOG_FETCHERS;
             } else if ((strcmp(tokens[x].value, "mutations") == 0)) {
                 f |= LOG_MUTATIONS;
+            } else if ((strcmp(tokens[x].value, "filter") == 0)) {
+                if (x + 1 >= ntokens - 1) {
+                    out_string(c, "ERROR");
+                    return;
+                }
+                x++;
+                filter = tokens[x].value;
             } else {
                 out_string(c, "ERROR");
                 return;
@@ -3754,7 +3762,7 @@ static void process_watch_command(conn *c, token_t *tokens, const size_t ntokens
         f |= LOG_FETCHERS;
     }
 
-    switch(logger_add_watcher(c, c->sfd, f)) {
+    switch(logger_add_watcher(c, c->sfd, f, filter)) {
         case LOGGER_ADD_WATCHER_TOO_MANY:
             out_string(c, "WATCHER_TOO_MANY log watcher limit reached");
             break;

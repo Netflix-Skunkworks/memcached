@@ -115,7 +115,9 @@ typedef struct  {
     bool failed_flush; /* recently failed to write out (EAGAIN), wait before retry */
     enum logger_watcher_type t; /* stderr, client, syslog, etc */
     uint16_t eflags; /* flags we are interested in */
+    size_t flen; /* filter length */
     bipbuf_t *buf; /* per-watcher output buffer */
+    char *filter; /* optional string filter */
 } logger_watcher;
 
 
@@ -150,6 +152,6 @@ enum logger_add_watcher_ret {
     LOGGER_ADD_WATCHER_FAILED
 };
 
-enum logger_add_watcher_ret logger_add_watcher(void *c, const int sfd, uint16_t f);
+enum logger_add_watcher_ret logger_add_watcher(void *c, const int sfd, uint16_t f, const char *filter);
 
 #endif

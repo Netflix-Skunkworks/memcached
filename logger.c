@@ -233,6 +233,10 @@ static void logger_thread_write_entry(logentry *e, struct logger_stats *ls,
         if (w == NULL || (e->eflags & w->eflags) == 0)
             continue;
 
+        if (w->filter != NULL && strstr(scratch, w->filter) == NULL) {
+            continue;
+        }
+
          /* Avoid poll()'ing constantly when buffer is full by resetting a
          * flag periodically.
          */
@@ -681,11 +685,13 @@ enum logger_ret_type logger_log(logger *l, const enum log_entry_type event, cons
     }
 }
 
+#define MAX_WATCHER_FILTER_LEN 4096
+
 /* Passes a client connection socket from a primary worker thread to the
  * logger thread. Caller *must* event_del() the client before handing it over.
  * Presently there's no way to hand the client back to the worker thread.
  */
-enum logger_add_watcher_ret logger_add_watcher(void *c, const int sfd, uint16_t f) {
+enum logger_add_watcher_ret logger_add_watcher(void *c, const int sfd, uint16_t f, const char *filter) {
     int x;
     logger_watcher *w = NULL;
     pthread_mutex_lock(&logger_stack_lock);
@@ -712,8 +718,27 @@ enum logger_add_watcher_ret logger_add_watcher(void *c, const int sfd, uint16_t 
     }
     w->id = x;
     w->eflags = f;
+    if (filter != NULL) {
+        size_t flen = strlen(filter);
+        if (flen > MAX_WATCHER_FILTER_LEN) {
+            free(w);
+            pthread_mutex_unlock(&logger_stack_lock);
+            return LOGGER_ADD_WATCHER_FAILED;
+        }
+        w->filter = malloc(flen);
+        if (w->filter == NULL) {
+            free(w);
+            pthread_mutex_unlock(&logger_stack_lock);
+            return LOGGER_ADD_WATCHER_FAILED;
+        }
+        memcpy(w->filter, filter, flen);
+        w->flen = flen;
+    }
+
     w->buf = bipbuf_new(settings.logger_watcher_buf_size);
     if (w->buf == NULL) {
+        if (w->filter)
+            free(w->filter);
         free(w);
         pthread_mutex_unlock(&logger_stack_lock);
         return LOGGER_ADD_WATCHER_FAILED;
